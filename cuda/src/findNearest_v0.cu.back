@@ -1,0 +1,129 @@
+
+#include "findNearest.h"
+
+__global__ void kernelIterativeClosestPoint(double *P, double *Q, int nP, int nQ, int pointsPerThread, double *Q_select_device, int *min_index_device)
+{
+
+	//__shared__ int min_index_device[N];
+	//__syncthreads();
+	int idx = threadIdx.x + blockIdx.x * blockDim.x;
+	for (int i = 0; i < pointsPerThread; i++) {
+		/* Handle exceptions */
+		int pIdx = idx * pointsPerThread + i; // The location in P
+		if (pIdx < nP) {
+			/* For each point in Q */
+			double minDist = 100; // Change this later
+			int minIndex = -1;
+			int pValIdx = pIdx * 3;
+			for (int j = 0; j < nQ; j++) {
+				int qValIdx = j * 3;
+				double dx = P[pValIdx] - Q[qValIdx];
+				double dy = P[pValIdx + 1] - Q[qValIdx + 1];
+				double dz = P[pValIdx + 2] - Q[qValIdx + 2];
+				double dist = sqrtf(dx*dx + dy*dy + dz*dz);
+				/* Update the nearest point */
+				if (dist < minDist) {
+					minDist = dist;
+					minIndex = j;
+				}
+			}
+			min_index_device[pIdx] = minIndex;
+		}
+	}
+
+	//__syncthreads(); 
+	/* Copy the data to Qselect */
+	for (int i = 0; i < pointsPerThread; i++) {
+		int pIdx = idx * pointsPerThread + i;
+		if (pIdx < nP) {
+			int qIdx = min_index_device[pIdx];
+			int qValIdx = qIdx * 3;
+			Q_select_device[pIdx * 3] = Q[qValIdx];
+			Q_select_device[pIdx * 3 + 1] = Q[qValIdx + 1];
+			Q_select_device[pIdx * 3 + 2] = Q[qValIdx + 2];
+		}
+	}
+}
+
+
+void cudaFindNearest(int numBlocks, int threadsPerBlock, double *P, double *Q, int nP, int nQ, double *Q_select, int *min_index_device) {
+
+    /* Assign points to each thread */
+	int pointsPerThread = (nP + numBlocks * threadsPerBlock - 1) / (numBlocks * threadsPerBlock);
+
+	//printf("%d\n", pointsPerThread);
+	kernelIterativeClosestPoint << <numBlocks, threadsPerBlock >> > (P, Q, nP, nQ, pointsPerThread, Q_select, min_index_device);
+	//cudaCheckError(cudaThreadSynchronize());
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// #include <stdio.h>
+// #include "cube.h"
+ 
+// __global__ void cube_core(int *dev_a, int *dev_b){
+// 	int tid=blockIdx.x;
+// 	int tmp=*(dev_a+tid);
+// 	*(dev_b+tid)=tmp*tmp*tmp;	
+// }
+ 
+ 
+// void cube(int result[], int n){
+// 	int a[n];
+// 	for(int i=0;i<n;i++){
+// 		a[i]=i;	
+// 	}	
+// 	int *dev_a=NULL;
+// 	int *dev_b=NULL;
+// 	cudaMalloc((void**)&dev_a,n*sizeof(int));
+// 	cudaMemset((void**)&dev_a,0,n*sizeof(int));
+// 	cudaMalloc((void**)&dev_b,n*sizeof(int));
+// 	cudaMemset((void**)&dev_b,0,n*sizeof(int));
+// 	cudaMemcpy(dev_a,(void**)&a,n*sizeof(int),cudaMemcpyHostToDevice);
+// 	cube_core<<<n,1>>>(dev_a,dev_b);
+// 	cudaMemcpy((void **)&result[0],dev_b,n*sizeof(int),cudaMemcpyDeviceToHost);
+// }
+
